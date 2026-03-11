@@ -175,3 +175,12 @@ cython_debug/
 .claude/settings.json
 .md
 freshservice_auto_categorisation_rules.md
+
+# KB update/maintenance scripts (contain API keys)
+fetch_articles.py
+kb_expand_thin.py
+kb_update_batch.py
+update_articles.py
+update_howto_articles.py
+update_it_guides.py
+update_kb_articles.py
