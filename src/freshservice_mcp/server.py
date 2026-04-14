@@ -1615,7 +1615,77 @@ async def list_all_ticket_conversation(ticket_id: int)-> Dict[str, Any]:
             return response.json()
         else:
             return f"Cannot fetch ticket conversations ${response.json()}"
-        
+
+#FORWARD TICKET EMAIL
+@mcp.tool()
+async def forward_ticket_email(
+    ticket_id: int,
+    to_emails: Union[str, List[str]],
+    body: str,
+    from_email: Optional[str] = None,
+    cc_emails: Optional[Union[str, List[str]]] = None,
+    bcc_emails: Optional[Union[str, List[str]]] = None,
+    include_original_attachments: Optional[bool] = True
+) -> Dict[str, Any]:
+    """Forward a ticket email to one or more recipients in Freshservice.
+
+    Args:
+        ticket_id: The ID of the ticket to forward.
+        to_emails: Email address(es) to forward to. Accepts a single email string or a JSON array string.
+        body: The HTML body of the forwarded email.
+        from_email: The email address to send from (defaults to helpdesk address).
+        cc_emails: Optional CC email address(es). Accepts a single email string or a JSON array string.
+        bcc_emails: Optional BCC email address(es). Accepts a single email string or a JSON array string.
+        include_original_attachments: Whether to include the original ticket attachments (default True).
+    """
+    if not ticket_id or not isinstance(ticket_id, int) or ticket_id < 1:
+        return {"success": False, "error": "Invalid ticket_id: Must be an integer >= 1"}
+    if not body or not isinstance(body, str) or not body.strip():
+        return {"success": False, "error": "Missing or empty body: Forward content is required"}
+
+    def parse_emails(value):
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return [value] if value else []
+        return value or []
+
+    parsed_to = parse_emails(to_emails)
+    if not parsed_to:
+        return {"success": False, "error": "to_emails is required and must contain at least one address"}
+
+    url = f"https://{FRESHSERVICE_DOMAIN}/api/v2/tickets/{ticket_id}/forward"
+
+    payload = {
+        "body": body.strip(),
+        "to_emails": parsed_to,
+        "include_original_attachments": include_original_attachments,
+    }
+
+    if from_email:
+        payload["from_email"] = from_email
+
+    parsed_cc = parse_emails(cc_emails)
+    if parsed_cc:
+        payload["cc_emails"] = parsed_cc
+
+    parsed_bcc = parse_emails(bcc_emails)
+    if parsed_bcc:
+        payload["bcc_emails"] = parsed_bcc
+
+    headers = get_auth_headers()
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            return {"success": False, "error": f"HTTP error occurred: {str(e)}", "status_code": e.response.status_code}
+        except Exception as e:
+            return {"success": False, "error": f"An unexpected error occurred: {str(e)}"}
+
 #GET ALL PRODUCTS
 @mcp.tool()
 async def get_all_products(page: Optional[int] = 1, per_page: Optional[int] = 30) -> Dict[str, Any]:
